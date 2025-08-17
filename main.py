@@ -6,7 +6,7 @@ This script generates an interactive map showing parking zones in a specified ar
 It supports various configuration options via command-line arguments.
 
 Example usage:
-    python main.py --lat 45.38 --lon 20.39 --radius 2000 --output my_map.html --tile-provider "Stamen Terrain"
+    python main.py --lat 45.38 --lon 20.39  --output my_map.html --tile-provider "Stamen Terrain"
 """
 import argparse
 import logging
@@ -59,12 +59,6 @@ def parse_arguments() -> argparse.Namespace:
     
     # Map configuration
     parser.add_argument(
-        '-r', '--radius',
-        type=int,
-        default=DEFAULTS['map_radius_meters'],
-        help='Search radius in meters'
-    )
-    parser.add_argument(
         '-o', '--output',
         default=DEFAULTS['map_filename'],
         help='Output HTML filename'
@@ -112,16 +106,72 @@ def validate_coordinates(lat: float, lon: float) -> Tuple[float, float]:
 
 
 
+def generate_map(lat: float, lon: float, tile_provider: str, output_file: str) -> int:
+    """
+    Generate a parking zone map with the given parameters.
+    
+    Args:
+        lat: Latitude of the center point
+        lon: Longitude of the center point
+        tile_provider: Name of the tile provider to use
+        output_file: Path to save the generated map HTML file
+        
+    Returns:
+        int: 0 on success, non-zero on error
+    """
+    try:
+        # Validate coordinates
+        target_point = validate_coordinates(lat, lon)
+        
+        logger.info(f"Starting parking zone visualization with center at {target_point}")
+        logger.info(f"Using tile provider: {tile_provider}")
+        
+        # Initialize the processor
+        processor = ParkingZoneProcessor(
+            target_point=target_point,
+            tile_provider=tile_provider
+        )
+        
+        # Fetch and process map data
+        logger.info("Fetching map data...")
+        processor.fetch_map_data()
+        logger.info("Processing parking zones...")
+        processor.process_zones()
+        
+        # Log processing summary
+        processor.log_processing_summary()
+        
+        # Create the map with the specified tile provider
+        logger.info("Generating the map...")
+        m = create_map(
+            location=target_point,
+            zoom_start=DEFAULTS['zoom_start'],
+            tile_provider=tile_provider
+        )
+        
+        # Add parking zone data to the map
+        add_zone_polylines(m, processor.zone_geometries)
+        add_map_legend(m)
+        
+        # Save the map to file
+        m.save(output_file)
+        logger.info(f"Map successfully saved to {output_file}")
+        
+        return 0
+        
+    except ConnectionError as e:
+        logger.error(f"Connection error: {e}")
+        raise
+    except ValueError as e:
+        logger.error(f"Data error: {e}")
+        raise
+    except Exception as e:
+        logger.error(f"An error occurred: {e}", exc_info=True)
+        raise
+
 def main():
     """
-    Main function to generate the parking zone map.
-    
-    This function:
-    1. Parses command-line arguments
-    2. Validates inputs
-    3. Initializes the parking zone processor
-    4. Fetches and processes map data
-    5. Generates and saves the interactive map
+    Command-line interface for the parking zone map generator.
     """
     try:
         # Parse command line arguments
@@ -132,76 +182,17 @@ def main():
             logger.setLevel(logging.DEBUG)
             logger.debug("Verbose logging enabled")
         
-        # Validate coordinates
-        try:
-            target_point = validate_coordinates(args.lat, args.lon)
-        except ValueError as e:
-            logger.error(f"Invalid coordinates: {e}")
-            sys.exit(1)
-        
-        logger.info(f"Starting parking zone visualization with center at {target_point}")
-        logger.info(f"Using tile provider: {args.tile_provider}")
-        
-        # Initialize the processor with command line arguments
-        processor = ParkingZoneProcessor(
-            target_point=target_point,
-            radius_meters=args.radius,
-            tile_provider=args.tile_provider
+        # Generate the map
+        return generate_map(
+            lat=args.lat,
+            lon=args.lon,
+            tile_provider=args.tile_provider,
+            output_file=args.output
         )
         
-        # Fetch and process map data
-        try:
-            logger.info("Fetching map data...")
-            processor.fetch_map_data()
-            logger.info("Processing parking zones...")
-            processor.process_zones()
-            
-            # Log processing summary
-            processor.log_processing_summary()
-            
-            # Create the map with the specified tile provider
-            logger.info("Generating the map...")
-            m = create_map(
-                location=target_point,
-                zoom_start=DEFAULTS['zoom_start'],
-                tile_provider=args.tile_provider
-            )
-            
-            # Add parking zone data to the map
-            add_zone_polylines(m, processor.zone_geometries)
-            add_map_legend(m)
-            # add_center_marker(m)
-            
-            # Save the map to file
-            output_file = args.output
-            m.save(output_file)
-            logger.info(f"Map successfully saved to {output_file}")
-            
-            # Provide feedback on missing streets, if any
-            missing_streets = processor.get_missing_streets()
-            if missing_streets:
-                logger.warning(f"Could not find {len(missing_streets)} streets in the map data.")
-                logger.warning("This might be due to the search radius being too small or the streets not existing in OpenStreetMap.")
-            
-            return 0
-            
-        except ConnectionError as e:
-            logger.error(f"Connection error: {e}")
-            logger.error("Please check your internet connection and try again.")
-            return 1
-            
-        except ValueError as e:
-            logger.error(f"Data error: {e}")
-            return 1
-            
-        except Exception as e:
-            logger.error(f"An unexpected error occurred: {e}", exc_info=True)
-            return 1
-            
     except KeyboardInterrupt:
         logger.info("Operation cancelled by user")
         return 1
-        
     except Exception as e:
         logger.error(f"A fatal error occurred: {e}", exc_info=True)
         return 1

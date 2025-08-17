@@ -1,7 +1,5 @@
 """Core functionality for managing and processing parking zones."""
-from typing import Dict, List, Set, Tuple, Optional, Any
 import logging
-
 import osmnx as ox
 
 from config import (
@@ -11,6 +9,7 @@ from config import (
     get_tile_provider
 )
 from map_utils import process_street_geometries
+from typing import Dict, Set, Tuple, Optional
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -22,7 +21,6 @@ class ParkingZoneProcessor:
     def __init__(
         self,
         target_point: Optional[Tuple[float, float]] = None,
-        radius_meters: Optional[int] = None,
         tile_provider: Optional[str] = None
     ):
         """
@@ -31,13 +29,10 @@ class ParkingZoneProcessor:
         Args:
             target_point: Tuple of (latitude, longitude) for the map center.
                          If None, uses the default from config.
-            radius_meters: Radius in meters to search for streets.
-                          If None, uses the default from config.
             tile_provider: Name of the tile provider to use for the map.
                           If None, uses the default from config.
         """
         self.target_point = target_point or DEFAULTS['target_point']
-        self.radius_meters = radius_meters or DEFAULTS['map_radius_meters']
         self.tile_provider = tile_provider or DEFAULTS['tile_provider']
         
         # Validate inputs
@@ -49,7 +44,7 @@ class ParkingZoneProcessor:
         self.zone_geometries = {}
         self.found_streets = set()
         logger.info(f"Initialized ParkingZoneProcessor with center at {self.target_point}, "
-                  f"radius: {self.radius_meters}m, tile provider: {self.tile_provider}")
+                    f"tile provider: {self.tile_provider}")
     
     def _validate_config(self) -> None:
         """Validate the configuration parameters."""
@@ -59,10 +54,6 @@ class ParkingZoneProcessor:
                 len(self.target_point) != 2 or 
                 not all(isinstance(coord, (int, float)) for coord in self.target_point)):
                 raise ValueError(ERROR_MESSAGES['invalid_coordinates'])
-            
-            # Validate radius
-            if not isinstance(self.radius_meters, (int, float)) or self.radius_meters <= 0:
-                raise ValueError(ERROR_MESSAGES['invalid_radius'])
                 
             # Validate tile provider
             if self.tile_provider not in get_tile_provider('all'):
@@ -97,7 +88,7 @@ class ParkingZoneProcessor:
             ConnectionError: If unable to fetch map data after retries
             ValueError: If the fetched graph is empty or invalid
         """
-        logger.info(f"Retrieving map data for point {self.target_point} within {self.radius_meters}m...")
+        logger.info(f"Retrieving map data for point {self.target_point}...")
         
         for attempt in range(1, max_retries + 1):
             try:
@@ -105,7 +96,7 @@ class ParkingZoneProcessor:
                 self.graph = ox.graph_from_point(
                     center_point=self.target_point,
                     network_type='all',
-                    dist=self.radius_meters,
+                    dist=DEFAULTS['radius'],
                     simplify=True
                 )
                 
