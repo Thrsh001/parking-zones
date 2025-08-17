@@ -11,13 +11,11 @@ Example usage:
 import argparse
 import logging
 import sys
-from typing import Optional, Tuple, Dict, Any
-
-import folium
+from typing import Tuple
 
 from config import DEFAULTS, get_tile_provider, ERROR_MESSAGES
 from parking_zones import ParkingZoneProcessor
-from map_utils import create_map, add_zone_polylines, add_map_legend, add_center_marker
+from map_utils import create_map, add_zone_polylines, add_map_legend
 
 # Configure logging
 logging.basicConfig(
@@ -93,7 +91,7 @@ def validate_coordinates(lat: float, lon: float) -> Tuple[float, float]:
         
     Returns:
         Tuple of (latitude, longitude)
-        
+
     Raises:
         ValueError: If coordinates are invalid
     """
